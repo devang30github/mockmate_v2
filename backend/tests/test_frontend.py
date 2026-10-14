@@ -33,3 +33,8 @@ def test_api_routes_not_shadowed_by_static_mount():
 
 def test_unknown_api_path_is_404():
     assert get("/api/v1/does-not-exist").status_code == 404
+
+def test_setup_page_served():
+    r = get("/setup.html")
+    assert r.status_code == 200
+    assert "Set up your interview" in r.text

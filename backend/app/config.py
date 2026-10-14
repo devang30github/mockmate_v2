@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     sarvam_base_url: str = "https://api.sarvam.ai"
     sarvam_api_keys: str = ""   # comma-separated
 
+    max_upload_mb: int = 5
+    max_pdf_pages: int = 15
+    min_resume_chars: int = 200
+
     @model_validator(mode="after")
     def _validate_for_prod(self) -> "Settings":
         if self.app_env == "prod":
@@ -41,6 +45,10 @@ class Settings(BaseSettings):
     @property
     def cookie_secure(self) -> bool:
         return self.app_env == "prod"
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_mb * 1024 * 1024
 
     def secret_values(self) -> list[str]:
         """Every secret the logger must never print."""

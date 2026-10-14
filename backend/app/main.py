@@ -5,10 +5,13 @@ from fastapi import FastAPI
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1 import auth,health
+
+from app.api.v1 import auth, documents, health, interviews
 from app.config import get_settings
 from app.core.logging import register_secret, setup_logging
 from app.db.session import dispose_engine
+
+
 log = logging.getLogger("mockmate")
 
 
@@ -29,6 +32,8 @@ def create_app() -> FastAPI:
     app = FastAPI(title="MockMate", version="0.1.0", lifespan=lifespan)
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(auth.router, prefix="/api/v1")
+    app.include_router(documents.router, prefix="/api/v1")
+    app.include_router(interviews.router, prefix="/api/v1")
 
     # Mounted last so every /api route takes precedence over static files.
     frontend_dir = Path(__file__).resolve().parents[2] / "frontend"
