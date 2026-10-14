@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard: MockMate</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">MockMate</a>
+    <nav aria-label="Account">
+      <span id="user-email" class="muted"></span>
+      <button id="logout" class="btn" type="button">Log out</button>
+    </nav>
+  </header>
+
+  <main id="app" class="container" hidden>
+    <h1>Your dashboard</h1>
+
+    <section class="card">
+      <h2>Start a mock interview</h2>
+      <p class="muted">Resume and job-description upload arrives in the next stage.</p>
+      <button class="btn primary" type="button" disabled>New interview</button>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <h2>Past interviews</h2>
+      <div class="empty muted">No interviews yet.</div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/dashboard.js"></script>
+</body>
+</html>

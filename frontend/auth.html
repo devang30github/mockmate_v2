@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in: MockMate</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">MockMate</a>
+  </header>
+
+  <main class="auth-wrap card">
+    <h1 id="title">Welcome back</h1>
+    <div id="error" class="error" role="alert" aria-live="assertive" hidden></div>
+    <form id="auth-form" novalidate>
+      <label>Email
+        <input name="email" type="email" autocomplete="email" required>
+      </label>
+      <label>Password
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <span id="password-hint" class="hint" hidden>At least 10 characters.</span>
+      </label>
+      <button id="submit" class="btn primary" type="submit">Log in</button>
+    </form>
+    <p class="muted"><span id="toggle-text">New to MockMate?</span>
+      <a id="toggle-link" href="#">Create an account</a></p>
+  </main>
+
+  <script type="module" src="/js/auth-page.js"></script>
+</body>
+</html>
