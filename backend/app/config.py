@@ -24,7 +24,9 @@ class Settings(BaseSettings):
 
     apinex_base_url: str = "https://api.apinex.bond/v1"
     apinex_model: str = ""
-    sarvam_api_keys: str = ""  # comma-separated; consumed by CredentialPool later
+    apinex_api_keys: str = ""   # comma-separated
+    sarvam_base_url: str = "https://api.sarvam.ai"
+    sarvam_api_keys: str = ""   # comma-separated
 
     @model_validator(mode="after")
     def _validate_for_prod(self) -> "Settings":
@@ -36,10 +38,15 @@ class Settings(BaseSettings):
                 raise ValueError("SECRET_KEY must be set to 32+ random chars in prod")
         return self
 
+    @property
+    def cookie_secure(self) -> bool:
+        return self.app_env == "prod"
+
     def secret_values(self) -> list[str]:
         """Every secret the logger must never print."""
         values = [self.secret_key.get_secret_value()]
-        values += [k.strip() for k in self.sarvam_api_keys.split(",") if k.strip()]
+        for csv in (self.sarvam_api_keys, self.apinex_api_keys):
+            values += [k.strip() for k in csv.split(",") if k.strip()]
         return values
 
 
