@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     sarvam_base_url: str = "https://api.sarvam.ai"
     sarvam_api_keys: str = ""   # comma-separated
 
+    llm_mode: Literal["mock", "live"] = "mock"  # dev override: real LLM while STT/TTS are still mocks
+    apinex_timeout_s: float = 60.0
+    apinex_max_attempts: int = 3
+    apinex_json_mode: Literal["prompt", "native"] = "prompt"  # "native" sends response_format
+    apinex_max_rpm: int = 0  # client-side cap per account; 0 = off. Set 5 for the free tier.
+
     max_upload_mb: int = 5
     max_pdf_pages: int = 15
     min_resume_chars: int = 200

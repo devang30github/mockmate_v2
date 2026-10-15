@@ -5,11 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
-from app.db.models import InterviewSession, User
+from app.api.deps import get_current_user, get_providers
+from app.db.models import InterviewAnalysis, InterviewSession, User
 from app.db.session import get_session
+from app.domain.analysis import Analysis
 from app.domain.interview_settings import InterviewSettings
+from app.providers.errors import ProviderError
+from app.providers.registry import Providers
+from app.services import analysis as analysis_svc
 from app.services import interviews as svc
+from app.services.structured import StructuredOutputError
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
 
@@ -83,3 +88,59 @@ async def delete_interview(
 ) -> None:
     if not await svc.delete_interview(session, user, interview_id):
         raise HTTPException(status_code=404, detail="Interview not found")
+
+class AnalysisOut(BaseModel):
+    interview_id: uuid.UUID
+    model: str
+    prompt_version: str
+    created_at: datetime
+    cached: bool
+    result: Analysis
+
+
+def _analysis_out(row: InterviewAnalysis, cached: bool) -> dict:
+    return {
+        "interview_id": row.interview_id,
+        "model": row.model,
+        "prompt_version": row.prompt_version,
+        "created_at": row.created_at,
+        "cached": cached,
+        "result": row.result,
+    }
+
+
+@router.post("/{interview_id}/analyze", response_model=AnalysisOut)
+async def analyze_interview(
+    interview_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+    providers: Providers = Depends(get_providers),
+) -> dict:
+    try:
+        row, cached = await analysis_svc.analyze_interview(
+            session, user, interview_id, providers.llm
+        )
+    except svc.NotFound as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except StructuredOutputError:
+        raise HTTPException(
+            status_code=502,
+            detail="The AI response could not be validated. Please try again.",
+        )
+    except ProviderError:
+        raise HTTPException(
+            status_code=503, detail="The AI provider is unavailable. Please try again shortly."
+        )
+    return _analysis_out(row, cached)
+
+
+@router.get("/{interview_id}/analysis", response_model=AnalysisOut)
+async def get_analysis(
+    interview_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    row = await analysis_svc.get_analysis(session, user, interview_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return _analysis_out(row, True)

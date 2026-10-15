@@ -26,3 +26,8 @@ class BadRequest(ProviderError):
 
 class NoCredentialAvailable(ProviderError):
     retryable = False
+
+class PaymentRequired(ProviderError):
+    """402: billing, quota, or check-in needed. A key on another account may still work."""
+
+    retryable = True

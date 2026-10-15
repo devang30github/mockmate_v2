@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.db.models import User
 from app.db.session import get_session
+from app.providers.registry import Providers
 from app.services import auth as auth_service
 
 
@@ -15,3 +16,7 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
+
+
+def get_providers(request: Request) -> Providers:
+    return request.app.state.providers

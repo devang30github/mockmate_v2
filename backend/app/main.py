@@ -5,8 +5,8 @@ from fastapi import FastAPI
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
-
-from app.api.v1 import auth, documents, health, interviews
+from app.providers.registry import build_providers
+from app.api.v1 import auth, documents, health, interviews, plans
 from app.config import get_settings
 from app.core.logging import register_secret, setup_logging
 from app.db.session import dispose_engine
@@ -21,9 +21,17 @@ async def lifespan(app: FastAPI):
     setup_logging(settings.log_level)
     for value in settings.secret_values():
         register_secret(value)
-
-    log.info("startup env=%s provider_mode=%s", settings.app_env, settings.provider_mode)
+    app.state.providers = build_providers(settings)
+    log.info(
+        "startup env=%s provider_mode=%s llm_mode=%s",
+        settings.app_env,
+        settings.provider_mode,
+        settings.llm_mode,
+    )
     yield
+    aclose = getattr(app.state.providers.llm, "aclose", None)
+    if aclose is not None:
+        await aclose()
     await dispose_engine()
     log.info("shutdown")
 
@@ -34,6 +42,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(documents.router, prefix="/api/v1")
     app.include_router(interviews.router, prefix="/api/v1")
+    app.include_router(plans.router, prefix="/api/v1")
 
     # Mounted last so every /api route takes precedence over static files.
     frontend_dir = Path(__file__).resolve().parents[2] / "frontend"
