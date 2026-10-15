@@ -26,3 +26,5 @@ export const deleteInterview = (id) => api(`/interviews/${id}`, { method: "DELET
 export const preparePlan = (id) => api(`/interviews/${id}/plan`, { method: "POST" });
 
 export const getPlan = (id) => api(`/interviews/${id}/plan`);
+
+export const getInterview = (id) => api(`/interviews/${id}`);

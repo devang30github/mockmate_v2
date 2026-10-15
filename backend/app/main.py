@@ -10,7 +10,7 @@ from app.api.v1 import auth, documents, health, interviews, plans
 from app.config import get_settings
 from app.core.logging import register_secret, setup_logging
 from app.db.session import dispose_engine
-
+from app.ws import endpoint as ws_endpoint
 
 log = logging.getLogger("mockmate")
 
@@ -22,6 +22,9 @@ async def lifespan(app: FastAPI):
     for value in settings.secret_values():
         register_secret(value)
     app.state.providers = build_providers(settings)
+    warmup = getattr(app.state.providers.stt, "warmup", None)
+    if warmup is not None:
+        await warmup()  # loads the speech model now so the first answer isn't slow
     log.info(
         "startup env=%s provider_mode=%s llm_mode=%s",
         settings.app_env,
@@ -43,8 +46,9 @@ def create_app() -> FastAPI:
     app.include_router(documents.router, prefix="/api/v1")
     app.include_router(interviews.router, prefix="/api/v1")
     app.include_router(plans.router, prefix="/api/v1")
+    app.include_router(ws_endpoint.router)  # before the static mount so /ws wins
 
-    # Mounted last so every /api route takes precedence over static files.
+    # Mounted last so every /api and /ws route takes precedence over static files.
     frontend_dir = Path(__file__).resolve().parents[2] / "frontend"
     if frontend_dir.is_dir():
         app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")

@@ -2,7 +2,13 @@ import { getMe, logout } from "./auth.js";
 import { deleteInterview, getPlan, listInterviews, preparePlan } from "./data.js";
 
 const $ = (id) => document.getElementById(id);
-const STATE_LABELS = { DRAFT: "Draft", READY: "Ready" };
+
+const STATE_LABELS = {
+  DRAFT: "Draft", READY: "Ready", ASKING: "In progress", LISTENING: "In progress",
+  TRANSCRIBING: "In progress", PROCESSING: "In progress", PAUSED: "Paused",
+  ERROR: "Needs attention", FINISHING: "Finished", REPORT_PENDING: "Finished",
+  COMPLETED: "Finished",
+};
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -117,6 +123,13 @@ async function renderInterviews() {
         }
       });
       actions.append(view);
+    }
+
+    const joinable = ["READY", "ASKING", "LISTENING", "TRANSCRIBING", "PROCESSING", "PAUSED", "ERROR"];
+    if (joinable.includes(i.state)) {
+      const go = el("a", "btn small primary", i.state === "READY" ? "Start interview" : "Continue");
+      go.href = `/room.html?id=${i.id}`;
+      actions.append(go);
     }
 
     const del = el("button", "btn small", "Delete");

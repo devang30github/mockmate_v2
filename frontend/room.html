@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interview room: MockMate</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">MockMate</a>
+    <nav aria-label="Interview">
+      <span id="conn" class="badge" role="status">Not connected</span>
+      <a href="/dashboard.html">Dashboard</a>
+    </nav>
+  </header>
+
+  <main class="container stack">
+    <h1 id="title">Interview</h1>
+    <p id="meta" class="muted"></p>
+
+    <div id="banner" class="error" role="alert" hidden>
+      <span id="banner-text"></span>
+      <button id="retry" class="btn small" type="button" hidden>Retry</button>
+    </div>
+
+    <section id="draft-note" class="card" hidden>
+      <h2>Not ready yet</h2>
+      <p class="muted">This interview hasn't been prepared. Go to the dashboard and click Prepare first.</p>
+      <a class="btn" href="/dashboard.html">Back to dashboard</a>
+    </section>
+
+    <section id="gate" class="card" hidden>
+      <h2>Before you start</h2>
+      <ul>
+        <li>Your browser will ask to use your microphone. You answer out loud; there is no typing.</li>
+        <li>Your voice is sent to this MockMate server while you answer and turned into text. The raw audio is held in memory only for transcription and is not saved.</li>
+        <li>The text of the questions and your answers is saved to your account, so you can reload this page and continue.</li>
+        <li>Headphones work best. The report is practice feedback, not a hiring decision.</li>
+      </ul>
+      <label class="pick">
+        <input id="consent" type="checkbox">
+        <span>I understand and agree</span>
+      </label>
+      <p><button id="begin" class="btn primary" type="button" disabled>Start interview</button></p>
+    </section>
+
+    <section id="room" class="stack" hidden>
+      <div id="live-card" class="card room-card">
+        <div id="orb" class="orb" aria-hidden="true"></div>
+        <p><span id="state-badge" class="badge">Ready</span></p>
+        <p id="state-text" class="state-text" role="status" aria-live="polite"></p>
+        <p id="recording" class="recording" hidden><span aria-hidden="true">●</span> Recording your answer</p>
+        <div class="meter" aria-hidden="true"><div id="meter-fill"></div></div>
+        <p id="mic-status" class="muted">Microphone: starting…</p>
+      </div>
+
+      <div class="card">
+        <h2>Current question</h2>
+        <p id="caption" class="caption">—</p>
+      </div>
+
+      <div id="controls" class="actions center">
+        <button id="answer-btn" class="btn primary" type="button" disabled>Start answering</button>
+        <button id="pause-btn" class="btn" type="button" disabled>Pause</button>
+        <button id="end-btn" class="btn" type="button" disabled>End interview</button>
+      </div>
+
+      <div class="card">
+        <h2>Transcript</h2>
+        <div id="transcript" class="transcript"></div>
+      </div>
+
+      <div id="dev" class="card" hidden>
+        <h2>Developer</h2>
+        <p id="dev-level" class="muted">level - · threshold -</p>
+        <button id="dev-download" class="btn small" type="button" disabled>Download last answer (WAV)</button>
+      </div>
+    </section>
+
+    <section id="done" class="card" hidden>
+      <h2>Interview ended</h2>
+      <p class="muted">Your answers are saved. Report generation isn't built yet, so there's nothing more to see here for now.</p>
+      <a class="btn primary" href="/dashboard.html">Back to dashboard</a>
+    </section>
+  </main>
+
+  <script type="module" src="/js/room.js"></script>
+</body>
+</html>

@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     max_pdf_pages: int = 15
     min_resume_chars: int = 200
 
+    stt_mode: Literal["mock", "local"] = "mock"  # local = faster-whisper on this machine's CPU
+    stt_model: str = "small"
+    stt_compute_type: str = "int8"
+    stt_cpu_threads: int = 0  # 0 = library default
+    stt_beam_size: int = 1  # faster-whisper's own default is 5; the benchmark compares both
+    stt_language: str = "en"
+    stt_vad_filter: bool = True
+
     @model_validator(mode="after")
     def _validate_for_prod(self) -> "Settings":
         if self.app_env == "prod":

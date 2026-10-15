@@ -6,6 +6,8 @@ from app.providers.base import EmbeddingProvider, LLMProvider, STTProvider, TTSP
 from app.providers.llm_openai_compat import OpenAICompatLLM
 from app.providers.mock.providers import MockEmbeddings, MockLLM, MockSTT, MockTTS
 from app.providers.ratelimit import RateLimiter
+from app.providers.stt_faster_whisper import FasterWhisperSTT
+
 
 @dataclass
 class Providers:
@@ -32,15 +34,28 @@ def _build_llm(settings: Settings) -> LLMProvider:
     )
 
 
+def _build_stt(settings: Settings) -> STTProvider:
+    if settings.stt_mode == "mock":
+        return MockSTT()
+    return FasterWhisperSTT(
+        model=settings.stt_model,
+        compute_type=settings.stt_compute_type,
+        cpu_threads=settings.stt_cpu_threads,
+        beam_size=settings.stt_beam_size,
+        language=settings.stt_language,
+        vad_filter=settings.stt_vad_filter,
+    )
+
+
 def build_providers(settings: Settings) -> Providers:
     if settings.provider_mode != "mock":
-        # Never fall back to mocks silently: live STT/TTS/embedding adapters come later.
+        # Never fall back to mocks silently: live TTS/embedding adapters come later.
         raise NotImplementedError(
-            "PROVIDER_MODE=live has no STT/TTS/embedding adapters yet; refusing to fall back to mocks"
+            "PROVIDER_MODE=live has no TTS/embedding adapters yet; refusing to fall back to mocks"
         )
     return Providers(
         llm=_build_llm(settings),
-        stt=MockSTT(),
+        stt=_build_stt(settings),
         tts=MockTTS(),
         embeddings=MockEmbeddings(),
     )

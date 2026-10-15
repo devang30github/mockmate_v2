@@ -38,3 +38,9 @@ def test_setup_page_served():
     r = get("/setup.html")
     assert r.status_code == 200
     assert "Set up your interview" in r.text
+
+def test_room_page_and_audio_modules_served():
+    assert get("/room.html").status_code == 200
+    r = get("/js/pcm-worklet.js")
+    assert r.status_code == 200
+    assert "javascript" in r.headers["content-type"]

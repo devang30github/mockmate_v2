@@ -5,3 +5,5 @@ __pycache__/
 .pytest_cache/
 node_modules/
 *.log
+bench/audio/
+bench/results/

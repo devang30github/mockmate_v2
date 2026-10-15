@@ -36,3 +36,9 @@ async def get_session() -> AsyncIterator[AsyncSession]:
     assert _sessionmaker is not None
     async with _sessionmaker() as session:
         yield session
+
+def open_session() -> AsyncSession:
+    """A new session for code that manages its own transactions (the WebSocket room)."""
+    get_engine()
+    assert _sessionmaker is not None
+    return _sessionmaker()
