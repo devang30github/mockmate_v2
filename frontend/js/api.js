@@ -14,11 +14,11 @@ function describe(data, status) {
   return `Request failed (${status})`;
 }
 
-export async function api(path, { method = "GET", body } = {}) {
+export async function api(path, { method = "GET", body, form } = {}) {
   const res = await fetch(`/api/v1${path}`, {
     method,
     headers: body ? { "Content-Type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
+    body: form ? form : body ? JSON.stringify(body) : undefined,
     credentials: "same-origin",
   });
   let data = null;

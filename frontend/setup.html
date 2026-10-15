@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New interview: MockMate</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">MockMate</a>
+    <nav aria-label="Account"><a href="/dashboard.html">Dashboard</a></nav>
+  </header>
+
+  <main class="container stack">
+    <h1>Set up your interview</h1>
+
+    <section class="card" aria-labelledby="h-resume">
+      <h2 id="h-resume">1. Resume</h2>
+      <p class="muted">PDF or DOCX, up to 5 MB. Text-based files only; scanned images aren't supported yet.</p>
+      <div id="resume-error" class="error" role="alert" hidden></div>
+      <form id="resume-form">
+        <label>Upload a resume
+          <input id="resume-file" type="file" accept=".pdf,.docx" required>
+        </label>
+        <button id="resume-submit" class="btn" type="submit">Upload</button>
+      </form>
+      <div id="resume-list" role="radiogroup" aria-label="Choose a resume"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-jd">
+      <h2 id="h-jd">2. Job description</h2>
+      <div id="jd-error" class="error" role="alert" hidden></div>
+      <form id="jd-form">
+        <label>Title (optional)
+          <input id="jd-title" maxlength="200" placeholder="e.g. ML Engineer at Acme">
+        </label>
+        <label>Paste the job description
+          <textarea id="jd-text" required minlength="100" maxlength="20000"></textarea>
+          <span class="hint">At least 100 characters.</span>
+        </label>
+        <button id="jd-submit" class="btn" type="submit">Save job description</button>
+      </form>
+      <div id="jd-list" role="radiogroup" aria-label="Choose a job description"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-settings">
+      <h2 id="h-settings">3. Interview settings</h2>
+      <div class="stack">
+        <label>Role you're interviewing for
+          <input id="role" maxlength="120" placeholder="e.g. Machine Learning Engineer">
+        </label>
+        <div class="two-col">
+          <label>Duration
+            <select id="duration">
+              <option value="15">15 minutes</option>
+              <option value="30" selected>30 minutes</option>
+              <option value="45">45 minutes</option>
+              <option value="60">60 minutes</option>
+            </select>
+          </label>
+          <label>Difficulty
+            <select id="difficulty">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </label>
+          <label>Interview type
+            <select id="itype">
+              <option value="technical" selected>Technical</option>
+              <option value="behavioral">Behavioral</option>
+              <option value="mixed">Mixed</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <div id="create-error" class="error" role="alert" hidden></div>
+    <button id="create" class="btn primary" type="button" disabled>Create interview</button>
+    <p class="muted">Your interview is saved as a draft. Voice interviews arrive in a later stage.</p>
+  </main>
+
+  <script type="module" src="/js/setup.js"></script>
+</body>
+</html>

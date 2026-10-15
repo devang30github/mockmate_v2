@@ -68,3 +68,31 @@ input {
 .error[hidden] { display: none; }
 .empty { text-align: center; padding: 28px 12px; }
 .footer { text-align: center; color: var(--muted); font-size: .85rem; padding: 32px 0; }
+
+select, textarea {
+  padding: 11px 12px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font: inherit; width: 100%;
+}
+textarea { min-height: 160px; resize: vertical; }
+input[type="radio"] { width: auto; padding: 0; }
+.row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 0; border-top: 1px solid var(--border);
+}
+.row:first-child { border-top: 0; }
+.row .grow { flex: 1; min-width: 0; }
+.pick { display: flex; align-items: center; gap: 10px; }
+.pick label { font-weight: 400; }
+.badge {
+  font-size: .75rem; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.two-col { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.stack > * + * { margin-top: 16px; }
+.btn.small { padding: 6px 12px; font-size: .9rem; }
+
+.interview-item + .interview-item { border-top: 1px solid var(--border); }
+.actions { display: flex; gap: 8px; }
+.plan { padding: 8px 0 16px 8px; border-top: 1px dashed var(--border); }
+.plan-section { margin: 12px 0; }
+.plan-section ul { margin: 6px 0 0; padding-left: 20px; }

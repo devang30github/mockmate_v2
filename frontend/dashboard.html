@@ -17,16 +17,17 @@
 
   <main id="app" class="container" hidden>
     <h1>Your dashboard</h1>
+    <div id="dash-error" class="error" role="alert" hidden></div>
 
     <section class="card">
       <h2>Start a mock interview</h2>
-      <p class="muted">Resume and job-description upload arrives in the next stage.</p>
-      <button class="btn primary" type="button" disabled>New interview</button>
+      <p class="muted">Upload a resume, add a job description, and choose your settings.</p>
+      <a class="btn primary" href="/setup.html">New interview</a>
     </section>
 
     <section class="card" style="margin-top:16px">
-      <h2>Past interviews</h2>
-      <div class="empty muted">No interviews yet.</div>
+      <h2>Your interviews</h2>
+      <div id="interviews"></div>
     </section>
   </main>
 
