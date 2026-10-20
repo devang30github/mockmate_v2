@@ -15,6 +15,7 @@ session cookie. Control messages are JSON text frames. Audio is binary frames.
 | pause / unpause | | only while a question plays or while listening |
 | finish | | end the interview and start the report |
 | ping | | keepalive; the server replies with pong |
+| utterance.pause | utterance_id (uuid) | a pause inside an answer; the server may transcribe the phrase so far |
 
 Every client message carries `"v": 1`. Unknown fields, versions or types are rejected with an
 `error` message. Control messages over 4096 bytes are rejected.
@@ -30,6 +31,7 @@ Every client message carries `"v": 1`. Unknown fields, versions or types are rej
 | answer.ack | utterance_id, duplicate | no |
 | error | code, message, retryable | no |
 | pong | | no |
+| transcript.partial | utterance_id, committed, live | live captions while speaking; `committed` is stable, `live` may change. No event_id, not replayed |
 
 `event_id` values increase per interview. A reconnecting client sends
 `hello {last_event_id}` and gets every later persisted event again, in order. Audio is not

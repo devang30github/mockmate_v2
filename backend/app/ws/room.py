@@ -1,13 +1,14 @@
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db.models import InterviewAnswer, InterviewQuestion, InterviewSession
 from app.db.session import open_session
 from app.domain.question_queue import QueuedQuestion
@@ -27,10 +28,12 @@ from app.ws.protocol import (
     TtsDone,
     Unpause,
     UtteranceEnd,
+    UtterancePause,
     UtteranceStart,
     parse_client_message,
     server_message,
 )
+from app.ws.streaming import UtteranceStreamer
 
 log = logging.getLogger("mockmate.room")
 
@@ -53,16 +56,14 @@ class RoomError(Exception):
 @dataclass
 class _Utterance:
     id: uuid.UUID
-    duplicate: bool = False
-    buf: bytearray = field(default_factory=bytearray)
-    truncated: bool = False
+    streamer: UtteranceStreamer | None = None  # None marks a re-sent, already-stored utterance
 
 
 class Room:
     """One WebSocket connection driving one interview.
 
-    The database is the source of truth; this object only holds the audio of the
-    answer currently being spoken. Messages are handled one at a time, in order.
+    The database is the source of truth; this object only holds the answer currently
+    being spoken. Messages are handled one at a time, in order.
     """
 
     def __init__(
@@ -81,8 +82,6 @@ class Room:
         self.utt: _Utterance | None = None
         self._warned_no_utterance = False
 
-    
-
     # ---- sending ----------------------------------------------------------------
     async def send(self, type_: str, event_id: int | None = None, **fields) -> None:
         await self.ws.send_json(server_message(type_, event_id, **fields))
@@ -93,6 +92,14 @@ class Room:
 
     async def _error(self, code: str, message: str, retryable: bool = False) -> None:
         await self.send("error", code=code, message=message, retryable=retryable)
+
+    async def _send_partial(self, utterance_id: str, committed: str, live: str) -> None:
+        try:
+            await self.send(
+                "transcript.partial", utterance_id=utterance_id, committed=committed, live=live
+            )
+        except Exception:  # the client may have gone away; captions are best-effort
+            log.debug("partial caption not sent")
 
     async def _deliver(self, question_id: uuid.UUID, text: str) -> None:
         try:
@@ -160,16 +167,24 @@ class Room:
         event_id = await append_event(s, self.interview_id, "question.text", payload)
         return row, ("question.text", event_id, payload)
 
+    async def _drop_utterance(self) -> None:
+        u, self.utt = self.utt, None
+        if u is not None and u.streamer is not None:
+            await u.streamer.aclose()
+
     # ---- main loop ----------------------------------------------------------------
     async def run(self) -> None:
-        while True:
-            message = await self.ws.receive()
-            if message["type"] == "websocket.disconnect":
-                return
-            if message.get("text") is not None:
-                await self.handle_text(message["text"])
-            elif message.get("bytes") is not None:
-                await self.on_audio(message["bytes"])
+        try:
+            while True:
+                message = await self.ws.receive()
+                if message["type"] == "websocket.disconnect":
+                    return
+                if message.get("text") is not None:
+                    await self.handle_text(message["text"])
+                elif message.get("bytes") is not None:
+                    await self.on_audio(message["bytes"])
+        finally:
+            await self._drop_utterance()
 
     async def handle_text(self, raw: str) -> None:
         try:
@@ -186,6 +201,8 @@ class Room:
                 await self.on_tts_done(msg)
             elif isinstance(msg, UtteranceStart):
                 await self.on_utterance_start(msg)
+            elif isinstance(msg, UtterancePause):
+                await self.on_utterance_pause(msg)
             elif isinstance(msg, UtteranceEnd):
                 await self.on_utterance_end(msg)
             elif isinstance(msg, Pause):
@@ -210,7 +227,7 @@ class Room:
 
     # ---- handlers -------------------------------------------------------------------
     async def on_hello(self, msg: Hello) -> None:
-        self.utt = None
+        await self._drop_utterance()
         lost_answer = False
         async with open_session() as s:
             state, version = await self._state(s)
@@ -281,13 +298,36 @@ class Room:
                 )
             ).scalar_one_or_none()
             state, _ = await self._state(s)
+        await self._drop_utterance()
         if known is not None:  # a re-send of an answer we already have
-            self.utt = _Utterance(msg.utterance_id, duplicate=True)
+            self.utt = _Utterance(msg.utterance_id)
             return
         if not accepts_audio(state):
             raise RoomError("not_listening", "Not listening for an answer right now.")
-        self.utt = _Utterance(msg.utterance_id)
+
+        settings = get_settings()
+        uid = str(msg.utterance_id)
+
+        async def emit(committed: str, live: str) -> None:
+            await self._send_partial(uid, committed, live)
+
+        streamer = UtteranceStreamer(
+            self.providers.stt,
+            self.stt_hints,
+            emit,
+            max_bytes=MAX_UTTERANCE_BYTES,
+            enabled=settings.stt_live_captions,
+            preview_interval_s=settings.stt_preview_interval_s,
+        )
+        streamer.start()
+        self.utt = _Utterance(msg.utterance_id, streamer)
         self._warned_no_utterance = False
+
+    async def on_utterance_pause(self, msg: UtterancePause) -> None:
+        u = self.utt
+        if u is not None and u.streamer is not None and u.id == msg.utterance_id:
+            u.streamer.pause_hint()
+        # a marker for anything else is stale and safely ignored
 
     async def on_audio(self, data: bytes) -> None:
         u = self.utt
@@ -296,32 +336,31 @@ class Room:
                 self._warned_no_utterance = True
                 await self._error("no_utterance", "Audio received outside an utterance.")
             return
-        if u.duplicate:
+        if u.streamer is None:  # a duplicate utterance: its audio is ignored
             return
-        room_left = MAX_UTTERANCE_BYTES - len(u.buf)
-        if room_left <= 0:
-            u.truncated = True
-            return
-        u.buf += data[:room_left]
-        if len(data) > room_left:
-            u.truncated = True
+        u.streamer.feed(data)
 
     async def on_utterance_end(self, msg: UtteranceEnd) -> None:
         u = self.utt
         if u is None or u.id != msg.utterance_id:
             raise RoomError("no_utterance", "No matching utterance in progress.")
         self.utt = None
-        if u.duplicate:
+        if u.streamer is None:
             await self.send("answer.ack", utterance_id=str(u.id), duplicate=True)
             return
+        try:
+            await self._finish_utterance(u.id, u.streamer)
+        finally:
+            await u.streamer.aclose()
 
+    async def _finish_utterance(self, utterance_id: uuid.UUID, streamer: UtteranceStreamer) -> None:
         async with open_session() as s:
             _, ev = await self._advance(s, Event.UTTERANCE_END)
             await s.commit()
         await self._emit([ev])
 
-        audio = bytes(u.buf)
-        if len(audio) < MIN_UTTERANCE_BYTES:
+        total = streamer.total_bytes
+        if total < MIN_UTTERANCE_BYTES:
             await self._return_to_listening(
                 Event.STT_EMPTY, "no_speech", "I didn't hear anything. Please try again."
             )
@@ -329,15 +368,17 @@ class Room:
 
         t0 = time.perf_counter()
         try:
-            result = await self.providers.stt.transcribe(audio, SAMPLE_RATE, hints=self.stt_hints)
+            transcript = (await streamer.finish()).strip()
         except ProviderError:
             log.warning("stt failed")
             await self._return_to_listening(
                 Event.STT_FAILED, "stt_failed", "Transcription failed. Please try again."
             )
             return
+        # time from the end of speech to the finished transcript (the end-of-speech wait is extra)
         stt_ms = int((time.perf_counter() - t0) * 1000)
-        transcript = result.text.strip()
+        audio_ms = total * 1000 // BYTES_PER_SECOND
+        log.info("answer transcribed audio_ms=%d post_speech_ms=%d", audio_ms, stt_ms)
         if not transcript:
             await self._return_to_listening(
                 Event.STT_EMPTY, "no_speech", "I didn't hear anything. Please try again."
@@ -352,10 +393,12 @@ class Room:
                 interview_id=self.interview_id,
                 question_id=question.id,
                 seq=question.seq,
-                utterance_id=u.id,
+                utterance_id=utterance_id,
                 body=transcript,
-                audio_ms=len(audio) * 1000 // BYTES_PER_SECOND,
-                stt_model=getattr(self.providers.stt, "model_name", type(self.providers.stt).__name__),
+                audio_ms=audio_ms,
+                stt_model=getattr(
+                    self.providers.stt, "model_name", type(self.providers.stt).__name__
+                ),
                 stt_latency_ms=stt_ms,
             )
             s.add(answer)
@@ -363,12 +406,12 @@ class Room:
                 await s.flush()
             except IntegrityError:  # this answer was already recorded elsewhere
                 await s.rollback()
-                await self.send("answer.ack", utterance_id=str(u.id), duplicate=True)
+                await self.send("answer.ack", utterance_id=str(utterance_id), duplicate=True)
                 return
             _, state_ev = await self._advance(s, Event.STT_OK)
             payload = {
                 "answer_id": str(answer.id),
-                "utterance_id": str(u.id),
+                "utterance_id": str(utterance_id),
                 "seq": question.seq,
                 "text": transcript,
             }
@@ -376,7 +419,9 @@ class Room:
             await s.commit()
             answered_seq = question.seq
         await self._emit([state_ev, ("transcript.final", event_id, payload)])
-        await self.send("answer.ack", utterance_id=str(u.id), duplicate=False)
+        await self.send(
+            "answer.ack", utterance_id=str(utterance_id), duplicate=False, stt_ms=stt_ms
+        )
         await self._next_turn(answered_seq)
 
     async def _return_to_listening(self, event: Event, code: str, message: str) -> None:
@@ -408,7 +453,7 @@ class Room:
         await self._deliver(question_id, text)
 
     async def on_pause(self) -> None:
-        self.utt = None
+        await self._drop_utterance()
         async with open_session() as s:
             _, ev = await self._advance(s, Event.PAUSE)
             await s.commit()
@@ -424,7 +469,7 @@ class Room:
             await self._deliver(current.id, current.body)
 
     async def on_finish(self) -> None:
-        self.utt = None
+        await self._drop_utterance()
         async with open_session() as s:
             _, ev = await self._advance(s, Event.FINISH)
             await s.commit()

@@ -55,6 +55,10 @@
         <p id="mic-status" class="muted">Microphone: starting…</p>
       </div>
 
+      <div id="live-line" class="card live" hidden aria-live="off">
+        <strong>You (live):</strong> <span id="live-committed"></span><span id="live-tail" class="muted"></span>
+      </div>
+
       <div class="card">
         <h2>Current question</h2>
         <p id="caption" class="caption">—</p>
@@ -74,6 +78,7 @@
       <div id="dev" class="card" hidden>
         <h2>Developer</h2>
         <p id="dev-level" class="muted">level - · threshold -</p>
+        <p id="dev-latency" class="muted"></p>
         <button id="dev-download" class="btn small" type="button" disabled>Download last answer (WAV)</button>
       </div>
     </section>

@@ -3,6 +3,7 @@ const DEFAULTS = {
   frameMs: 100,
   armDelayMs: 300, // ignore the first moments after the interviewer stops (speaker tail)
   onsetFrames: 2, // consecutive loud chunks that count as the start of speech
+  pauseMs: 600, // quiet inside an answer that marks a phrase boundary
   endSilenceMs: 2000, // quiet after speech that ends the answer
   maxUtteranceMs: 120000,
   minThreshold: 0.015,
@@ -25,6 +26,7 @@ export class EnergyVad {
     this.voiced = 0;
     this.silenceMs = 0;
     this.utterMs = 0;
+    this.pauseSent = false;
   }
 
   calibrate(ambientRms) {
@@ -51,10 +53,11 @@ export class EnergyVad {
     this.utterMs = 0;
     this.silenceMs = 0;
     this.voiced = 0;
+    this.pauseSent = false;
     return true;
   }
 
-  // Returns null, "start", "end-vad" or "end-max".
+  // Returns null, "start", "pause", "end-vad" or "end-max".
   push(rms) {
     if (!this.armed) return null;
     const { frameMs, onsetFrames, endSilenceMs, maxUtteranceMs } = this.o;
@@ -83,6 +86,7 @@ export class EnergyVad {
     if (loud) {
       this.voiced += 1;
       this.silenceMs = 0;
+      this.pauseSent = false;
     } else {
       this.silenceMs += frameMs;
     }
@@ -90,10 +94,14 @@ export class EnergyVad {
       this.armed = false;
       return "end-max";
     }
-    // After a manual start, silence only ends the answer once speech has been heard.
+    // After a manual start, silence only counts once speech has been heard.
     if (this.voiced >= onsetFrames && this.silenceMs >= endSilenceMs) {
       this.armed = false;
       return "end-vad";
+    }
+    if (!this.pauseSent && this.voiced >= onsetFrames && this.silenceMs >= this.o.pauseMs) {
+      this.pauseSent = true; // once per silence run
+      return "pause";
     }
     return null;
   }

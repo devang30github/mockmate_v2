@@ -10,6 +10,7 @@ from app.ws.protocol import (
     UtteranceStart,
     parse_client_message,
     server_message,
+    UtterancePause,
 )
 
 
@@ -79,3 +80,15 @@ def test_start_message_parses():
     from app.ws.protocol import Start
 
     assert isinstance(parse_client_message(msg(type="start")), Start)
+
+def test_utterance_pause_parses():
+    uid = str(uuid.uuid4())
+    parsed = parse_client_message(msg(type="utterance.pause", utterance_id=uid))
+    assert isinstance(parsed, UtterancePause)
+
+
+def test_partial_is_a_transient_server_message():
+    m = server_message("transcript.partial", utterance_id="u", committed="a", live="b")
+    assert "event_id" not in m and m["committed"] == "a"
+    with pytest.raises(ValueError):
+        server_message("transcript.partial", event_id=1, utterance_id="u", committed="", live="")

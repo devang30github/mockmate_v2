@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     stt_language: str = "en"
     stt_vad_filter: bool = True
 
+    stt_live_captions: bool = True  # decode while you speak: phrase chunks plus a live preview
+    stt_preview_interval_s: float = 1.5  # 0 turns the in-progress preview off, keeping chunks
+
     @model_validator(mode="after")
     def _validate_for_prod(self) -> "Settings":
         if self.app_env == "prod":

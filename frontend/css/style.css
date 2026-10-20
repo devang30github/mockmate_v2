@@ -121,3 +121,6 @@ input[type="radio"] { width: auto; padding: 0; }
 .transcript .line:first-child { border-top: 0; }
 #banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 #banner[hidden] { display: none; }
+
+.live { font-size: 1.1rem; }
+#live-tail { font-style: italic; }

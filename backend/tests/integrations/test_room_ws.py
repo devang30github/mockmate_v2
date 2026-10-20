@@ -202,9 +202,12 @@ def test_full_turn_persists_answer_and_asks_next_question(client, iid):
         speak(ws)
         msgs = collect(ws, "tts.end")
     assert types(msgs) == [
-        "state", "state", "transcript.final", "answer.ack",
+        "state", "transcript.partial", "state", "transcript.final", "answer.ack",
         "state", "question.text", "tts.start", "<audio>", "tts.end",
     ]
+    partial = next(m for m in msgs if isinstance(m, dict) and m["type"] == "transcript.partial")
+    assert partial["committed"] == "mock transcript of 1.0 seconds of audio"
+    assert partial["live"] == ""
     
     states = [m["state"] for m in msgs if isinstance(m, dict) and m["type"] == "state"]
     assert states == ["TRANSCRIBING", "PROCESSING", "ASKING"]
@@ -356,3 +359,32 @@ def test_resume_and_job_terms_reach_speech_recognition(client, iid):
         speak(ws)
         collect(ws, "tts.end")
     assert stt.hints and "FastAPI" in stt.hints[0]
+
+def test_pause_marker_streams_a_partial_and_the_chunks_are_joined(client, iid):
+    with connect(client, iid) as ws:
+        reach_listening(ws)
+        uid = str(uuid.uuid4())
+        send(ws, "utterance.start", utterance_id=uid)
+        for _ in range(10):  # 10 x 0.2 s = 2 s
+            ws.send_bytes(b"\x00\x00" * 3200)
+        send(ws, "utterance.pause", utterance_id=uid)
+        for _ in range(5):  # 1 s more
+            ws.send_bytes(b"\x00\x00" * 3200)
+        send(ws, "utterance.end", utterance_id=uid, reason="manual")
+        msgs = collect(ws, "answer.ack")
+    partials = [m for m in msgs if isinstance(m, dict) and m["type"] == "transcript.partial"]
+    assert any(p["committed"].startswith("mock transcript of 2.0") for p in partials)
+    final = next(m for m in msgs if isinstance(m, dict) and m["type"] == "transcript.final")
+    assert final["text"] == (
+        "mock transcript of 2.0 seconds of audio mock transcript of 1.0 seconds of audio"
+    )
+    ack = msgs[-1]
+    assert ack["duplicate"] is False and isinstance(ack["stt_ms"], int)
+
+
+def test_a_pause_marker_for_no_utterance_is_ignored(client, iid):
+    with connect(client, iid) as ws:
+        reach_listening(ws)
+        send(ws, "utterance.pause", utterance_id=str(uuid.uuid4()))
+        send(ws, "ping")
+        assert recv(ws)["type"] == "pong"

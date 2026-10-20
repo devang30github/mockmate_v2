@@ -38,6 +38,9 @@ class UtteranceEnd(_Msg):
     utterance_id: uuid.UUID
     reason: Literal["vad", "manual", "max_length"]
 
+class UtterancePause(_Msg):
+    type: Literal["utterance.pause"]
+    utterance_id: uuid.UUID  # the speaker paused: a good place to cut a chunk
 
 class TtsDone(_Msg):
     type: Literal["tts.done"]
@@ -61,9 +64,17 @@ class Finish(_Msg):
 class Ping(_Msg):
     type: Literal["ping"]
 
-
 ClientMessage = Annotated[
-    Hello | Start | UtteranceStart | UtteranceEnd | TtsDone | Pause | Unpause | Finish | Ping,
+    Hello
+    | Start
+    | UtteranceStart
+    | UtterancePause
+    | UtteranceEnd
+    | TtsDone
+    | Pause
+    | Unpause
+    | Finish
+    | Ping,
     Field(discriminator="type"),
 ]
 _client_adapter = TypeAdapter(ClientMessage)
@@ -87,6 +98,7 @@ SERVER_TYPES = frozenset(
         "tts.start",  # {question_id, mime}; binary audio frame(s) follow
         "tts.end",  # {question_id}
         "transcript.final",  # {answer_id, utterance_id, seq, text}
+        "transcript.partial",  # {utterance_id, committed, live}: live captions, not replayed
         "answer.ack",  # {utterance_id, duplicate}
         "error",  # {code, message, retryable}
         "pong",

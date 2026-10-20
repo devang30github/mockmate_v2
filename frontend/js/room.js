@@ -10,6 +10,7 @@ const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const interviewId = params.get("id");
 const DEV = params.get("dev") === "1";
+const silenceOverride = Number(params.get("silence")) || 0; // e.g. &silence=1500
 const PRE_ROLL_FRAMES = 8; // 800 ms: covers the onset frames plus a little lead-in
 const FINISHED = new Set(["FINISHING", "REPORT_PENDING", "COMPLETED"]);
 const JOINABLE = new Set(["ASKING", "LISTENING", "TRANSCRIBING", "PROCESSING", "PAUSED", "ERROR"]);
@@ -59,6 +60,18 @@ function showBanner(message, retry = false) {
 
 function hideBanner() {
   $("banner").hidden = true;
+}
+function showLive(committed, live) {
+  if (state !== "LISTENING" && state !== "TRANSCRIBING") return;
+  $("live-committed").textContent = committed || "";
+  $("live-tail").textContent = live ? ` ${live}` : "";
+  $("live-line").hidden = !(committed || live);
+}
+
+function hideLive() {
+  $("live-committed").textContent = "";
+  $("live-tail").textContent = "";
+  $("live-line").hidden = true;
 }
 
 function setMicStatus(text) {
@@ -138,6 +151,7 @@ function applyState(next, version) {
   stateVersion = version;
   state = next;
   submitting = false;
+  if (next !== "LISTENING" && next !== "TRANSCRIBING") hideLive();
   if (next === "LISTENING") {
     ring.length = 0;
     vad.arm();
@@ -181,8 +195,17 @@ async function onJson(m) {
       addLine("Interviewer", m.text);
       setCaption(m.seq, m.text);
       break;
+    case "transcript.partial":
+      showLive(m.committed, m.live);
+      break;
     case "transcript.final":
+      hideLive();
       addLine("You", m.text);
+      break;
+    case "answer.ack":
+      if (DEV && typeof m.stt_ms === "number") {
+        $("dev-latency").textContent = `last answer transcribed ${m.stt_ms} ms after you stopped`;
+      }
       break;
     case "tts.start":
       ttsQuestionId = m.question_id;
@@ -206,6 +229,7 @@ function sendFrame(frame) {
 }
 
 function startUtterance() {
+  hideLive();
   utter = { id: crypto.randomUUID(), chunks: [] };
   ws.sendJson("utterance.start", { utterance_id: utter.id });
   for (const f of ring) sendFrame(f);
@@ -243,6 +267,7 @@ function onFrame(frame) {
   if (event === "start") startUtterance();
   else if (event === "end-vad") endUtterance("vad");
   else if (event === "end-max") endUtterance("max_length");
+  else if (event === "pause" && utter) ws.sendJson("utterance.pause", { utterance_id: utter.id });
 }
 
 function calibrate(ms = 1200) {
@@ -350,7 +375,7 @@ async function begin() {
   setMicStatus("Checking your microphone. Stay quiet for a second…");
   const levels = await calibrate();
   const ambient = median(levels);
-  vad = new EnergyVad();
+  vad = new EnergyVad(silenceOverride > 0 ? { endSilenceMs: silenceOverride } : {});
   vad.calibrate(ambient);
   player = new AudioPlayer(ctx);
   if (Math.max(0, ...levels) < 0.0005) {

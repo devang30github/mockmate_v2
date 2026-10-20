@@ -35,18 +35,21 @@ test("a single loud blip does not start", () => {
   assert.deepEqual([...feed(vad, LOUD, 1), ...feed(vad, QUIET, 1), ...feed(vad, LOUD, 1)], []);
 });
 
-test("ends after two seconds of silence", () => {
+test("marks a pause, then ends after two seconds of silence", () => {
   const vad = armed();
   feed(vad, QUIET, 4);
   feed(vad, LOUD, 2);
-  assert.deepEqual(feed(vad, QUIET, 20), ["end-vad"]);
+  assert.deepEqual(feed(vad, QUIET, 20), ["pause", "end-vad"]);
 });
 
-test("a short pause mid-answer does not end it", () => {
+test("a short pause mid-answer marks the pause but does not end it", () => {
   const vad = armed();
   feed(vad, QUIET, 4);
   feed(vad, LOUD, 2);
-  assert.deepEqual([...feed(vad, QUIET, 10), ...feed(vad, LOUD, 2), ...feed(vad, QUIET, 19)], []);
+  assert.deepEqual(
+    [...feed(vad, QUIET, 10), ...feed(vad, LOUD, 2), ...feed(vad, QUIET, 19)],
+    ["pause", "pause"],
+  );
   assert.deepEqual(feed(vad, QUIET, 1), ["end-vad"]);
 });
 
@@ -65,17 +68,42 @@ test("a noisy room raises the threshold so steady noise never starts an answer",
   assert.deepEqual(feed(vad, 0.1, 2), ["start"]);
 });
 
-test("manual start does not end on silence until speech was heard", () => {
+test("manual start does not pause or end on silence until speech was heard", () => {
   const vad = armed();
   assert.equal(vad.forceStart(), true);
   assert.equal(vad.forceStart(), false);
   assert.deepEqual(feed(vad, QUIET, 30), []);
   feed(vad, LOUD, 2);
-  assert.deepEqual(feed(vad, QUIET, 20), ["end-vad"]);
+  assert.deepEqual(feed(vad, QUIET, 20), ["pause", "end-vad"]);
 });
 
 test("a disarmed detector reports nothing", () => {
   const vad = armed();
   vad.disarm();
   assert.deepEqual(feed(vad, LOUD, 10), []);
+});
+
+test("reports one pause per silence run", () => {
+  const vad = armed();
+  feed(vad, QUIET, 4);
+  feed(vad, LOUD, 2);
+  assert.deepEqual(feed(vad, QUIET, 5), []);
+  assert.deepEqual(feed(vad, QUIET, 1), ["pause"]);
+  assert.deepEqual(feed(vad, QUIET, 5), []);
+});
+
+test("the pause marker rearms after speech resumes", () => {
+  const vad = armed();
+  feed(vad, QUIET, 4);
+  feed(vad, LOUD, 2);
+  assert.deepEqual(feed(vad, QUIET, 6), ["pause"]);
+  feed(vad, LOUD, 1);
+  assert.deepEqual(feed(vad, QUIET, 6), ["pause"]);
+});
+
+test("the end wins when the end silence is not longer than the pause length", () => {
+  const vad = armed({ pauseMs: 2000, endSilenceMs: 2000 });
+  feed(vad, QUIET, 4);
+  feed(vad, LOUD, 2);
+  assert.deepEqual(feed(vad, QUIET, 20), ["end-vad"]);
 });
