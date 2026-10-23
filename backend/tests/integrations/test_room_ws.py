@@ -17,6 +17,7 @@ from tests.factories import SAMPLE_JD, make_pdf
 from pathlib import Path
 from app.providers.caption_sherpa import SherpaCaptionEngine
 from tests.fakes import FakeRecognizer
+from app.providers.errors import TransientError
 
 PASSWORD = "a-decent-password-123"
 DOMAIN = "@ws-test.mockmate.dev"
@@ -413,3 +414,24 @@ def test_live_captions_stream_to_the_browser_and_replace_whisper_previews(client
     assert all(p["committed"] == "" for p in partials)  # Whisper's commits are not shown
     final = next(m for m in msgs if isinstance(m, dict) and m["type"] == "transcript.final")
     assert final["text"].startswith("mock transcript of")  # the saved text still comes from STT
+
+    class FailingTTS:
+    async def synthesize(self, text, *, voice=None):
+        raise TransientError("provider down")
+
+
+def test_failed_question_audio_can_be_retried_with_hello(client, iid):
+    working = client.app.state.providers.tts
+    client.app.state.providers.tts = FailingTTS()
+    with connect(client, iid) as ws:
+        send(ws, "hello")
+        assert recv(ws)["type"] == "server.hello"
+        send(ws, "start")
+        msgs = collect(ws, "error")
+        assert types(msgs) == ["state", "question.text", "error"]
+        assert msgs[-1]["code"] == "tts_failed" and msgs[-1]["retryable"] is True
+        client.app.state.providers.tts = working
+        send(ws, "hello", last_event_id=msgs[1]["event_id"])
+        again = collect(ws, "tts.end")
+    assert types(again) == ["server.hello", "tts.start", "<audio>", "tts.end"]
+    assert again[0]["state"] == "ASKING"

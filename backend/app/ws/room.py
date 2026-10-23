@@ -362,8 +362,13 @@ class Room:
             return
         if u.captions is not None:
             await u.captions.aclose()  # the final transcript replaces the live caption
+                turn_started = time.perf_counter()
         try:
             await self._finish_utterance(u.id, u.streamer)
+            log.info(
+                "turn timing end_of_answer_to_question_sent_ms=%.0f",
+                (time.perf_counter() - turn_started) * 1000,
+            )
         finally:
             await u.streamer.aclose()
 

@@ -34,7 +34,8 @@ async def lifespan(app: FastAPI):
         settings.stream_asr_mode,
     )
     yield
-    for name in ("llm", "captions"):
+
+    for name in ("llm", "tts", "captions"):
         aclose = getattr(getattr(app.state.providers, name), "aclose", None)
         if aclose is not None:
             await aclose()

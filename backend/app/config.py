@@ -52,6 +52,17 @@ class Settings(BaseSettings):
     stream_asr_model_dir: str = "models/sherpa-onnx-streaming-zipformer-en-2023-06-21"
     stream_asr_threads: int = 2
 
+    tts_mode: Literal["mock", "sarvam"] = "mock"
+    sarvam_tts_model: str = "bulbul:v4-flash"
+    sarvam_tts_speaker: str = "simran_en_conversation"
+    sarvam_tts_language: str = "en-IN"
+    sarvam_tts_pace: float = 1.0
+    sarvam_tts_temperature: float = 0.6
+    sarvam_tts_sample_rate: int = 24000
+    sarvam_tts_codec: Literal["wav", "mp3"] = "wav"
+    sarvam_tts_timeout_s: float = 30.0
+    sarvam_max_rpm: int = 0  # client-side cap per account; 0 = off
+
     @model_validator(mode="after")
     def _validate_for_prod(self) -> "Settings":
         if self.app_env == "prod":
