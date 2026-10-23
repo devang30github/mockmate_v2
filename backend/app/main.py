@@ -14,7 +14,6 @@ from app.ws import endpoint as ws_endpoint
 
 log = logging.getLogger("mockmate")
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()  # fails fast on invalid config
@@ -22,23 +21,26 @@ async def lifespan(app: FastAPI):
     for value in settings.secret_values():
         register_secret(value)
     app.state.providers = build_providers(settings)
-    warmup = getattr(app.state.providers.stt, "warmup", None)
-    if warmup is not None:
-        await warmup()  # loads the speech model now so the first answer isn't slow
+    for name in ("stt", "captions"):
+        warmup = getattr(getattr(app.state.providers, name), "warmup", None)
+        if warmup is not None:
+            await warmup()  # load speech models now so the first answer isn't slow
     log.info(
-        "startup env=%s provider_mode=%s llm_mode=%s",
+        "startup env=%s provider_mode=%s llm_mode=%s stt_mode=%s stream_asr=%s",
         settings.app_env,
         settings.provider_mode,
         settings.llm_mode,
+        settings.stt_mode,
+        settings.stream_asr_mode,
     )
     yield
-    aclose = getattr(app.state.providers.llm, "aclose", None)
-    if aclose is not None:
-        await aclose()
+    for name in ("llm", "captions"):
+        aclose = getattr(getattr(app.state.providers, name), "aclose", None)
+        if aclose is not None:
+            await aclose()
     await dispose_engine()
     log.info("shutdown")
-
-
+    
 def create_app() -> FastAPI:
     app = FastAPI(title="MockMate", version="0.1.0", lifespan=lifespan)
     app.include_router(health.router, prefix="/api/v1")

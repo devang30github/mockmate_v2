@@ -44,6 +44,8 @@ MIN_UTTERANCE_BYTES = int(0.3 * BYTES_PER_SECOND)
 
 Emit = tuple[str, int, dict]  # (message type, event_id, fields)
 
+async def _discard(committed: str, live: str) -> None:
+    """Whisper's phrase-by-phrase captions are not shown while the streaming model captions."""
 
 class RoomError(Exception):
     def __init__(self, code: str, message: str, retryable: bool = False):
@@ -53,11 +55,12 @@ class RoomError(Exception):
         self.retryable = retryable
 
 
+
 @dataclass
 class _Utterance:
     id: uuid.UUID
     streamer: UtteranceStreamer | None = None  # None marks a re-sent, already-stored utterance
-
+    captions: object | None = None  # live caption stream, when streaming captions are on
 
 class Room:
     """One WebSocket connection driving one interview.
@@ -169,6 +172,8 @@ class Room:
 
     async def _drop_utterance(self) -> None:
         u, self.utt = self.utt, None
+        if u is not None and u.captions is not None:
+            await u.captions.aclose()
         if u is not None and u.streamer is not None:
             await u.streamer.aclose()
 
@@ -307,20 +312,25 @@ class Room:
 
         settings = get_settings()
         uid = str(msg.utterance_id)
+        engine = getattr(self.providers, "captions", None)
 
-        async def emit(committed: str, live: str) -> None:
+        async def emit_whisper(committed: str, live: str) -> None:
             await self._send_partial(uid, committed, live)
 
+        async def emit_caption(text: str) -> None:
+            await self._send_partial(uid, "", text)
+
+        captions = engine.open_stream(emit_caption) if engine is not None else None
         streamer = UtteranceStreamer(
             self.providers.stt,
             self.stt_hints,
-            emit,
+            _discard if captions is not None else emit_whisper,
             max_bytes=MAX_UTTERANCE_BYTES,
             enabled=settings.stt_live_captions,
-            preview_interval_s=settings.stt_preview_interval_s,
+            preview_interval_s=0 if captions is not None else settings.stt_preview_interval_s,
         )
         streamer.start()
-        self.utt = _Utterance(msg.utterance_id, streamer)
+        self.utt = _Utterance(msg.utterance_id, streamer, captions)
         self._warned_no_utterance = False
 
     async def on_utterance_pause(self, msg: UtterancePause) -> None:
@@ -339,6 +349,8 @@ class Room:
         if u.streamer is None:  # a duplicate utterance: its audio is ignored
             return
         u.streamer.feed(data)
+        if u.captions is not None:
+            u.captions.feed(data)
 
     async def on_utterance_end(self, msg: UtteranceEnd) -> None:
         u = self.utt
@@ -348,6 +360,8 @@ class Room:
         if u.streamer is None:
             await self.send("answer.ack", utterance_id=str(u.id), duplicate=True)
             return
+        if u.captions is not None:
+            await u.captions.aclose()  # the final transcript replaces the live caption
         try:
             await self._finish_utterance(u.id, u.streamer)
         finally:

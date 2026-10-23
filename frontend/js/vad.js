@@ -4,7 +4,7 @@ const DEFAULTS = {
   armDelayMs: 300, // ignore the first moments after the interviewer stops (speaker tail)
   onsetFrames: 2, // consecutive loud chunks that count as the start of speech
   pauseMs: 600, // quiet inside an answer that marks a phrase boundary
-  endSilenceMs: 2000, // quiet after speech that ends the answer
+  endSilenceMs: 3000, // quiet after speech that ends the answer
   maxUtteranceMs: 120000,
   minThreshold: 0.015,
   noiseMultiplier: 3,

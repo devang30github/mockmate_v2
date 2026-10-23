@@ -1,6 +1,6 @@
 from functools import lru_cache
 from typing import Literal
-
+from pathlib import Path
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -48,6 +48,9 @@ class Settings(BaseSettings):
 
     stt_live_captions: bool = True  # decode while you speak: phrase chunks plus a live preview
     stt_preview_interval_s: float = 1.5  # 0 turns the in-progress preview off, keeping chunks
+    stream_asr_mode: Literal["off", "sherpa"] = "off"
+    stream_asr_model_dir: str = "models/sherpa-onnx-streaming-zipformer-en-2023-06-21"
+    stream_asr_threads: int = 2
 
     @model_validator(mode="after")
     def _validate_for_prod(self) -> "Settings":
@@ -62,6 +65,11 @@ class Settings(BaseSettings):
     @property
     def cookie_secure(self) -> bool:
         return self.app_env == "prod"
+
+    @property
+    def stream_asr_path(self) -> Path:
+        path = Path(self.stream_asr_model_dir)
+        return path if path.is_absolute() else Path(__file__).resolve().parents[2] / path
 
     @property
     def max_upload_bytes(self) -> int:

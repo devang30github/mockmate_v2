@@ -5,6 +5,7 @@ os.environ["APP_ENV"] = "test"
 os.environ["PROVIDER_MODE"] = "mock"
 os.environ["LLM_MODE"] = "mock"
 os.environ["STT_MODE"] = "mock"
+os.environ["STREAM_ASR_MODE"] = "off"
 
 
 @pytest.fixture

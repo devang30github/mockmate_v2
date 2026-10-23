@@ -14,6 +14,9 @@ from app.config import get_settings
 from app.main import app
 from tests.factories import SAMPLE_JD, make_pdf
 
+from pathlib import Path
+from app.providers.caption_sherpa import SherpaCaptionEngine
+from tests.fakes import FakeRecognizer
 
 PASSWORD = "a-decent-password-123"
 DOMAIN = "@ws-test.mockmate.dev"
@@ -388,3 +391,25 @@ def test_a_pause_marker_for_no_utterance_is_ignored(client, iid):
         send(ws, "utterance.pause", utterance_id=str(uuid.uuid4()))
         send(ws, "ping")
         assert recv(ws)["type"] == "pong"
+
+def test_live_captions_stream_to_the_browser_and_replace_whisper_previews(client, iid):
+    engine = SherpaCaptionEngine(
+        model_dir=Path("unused"), recognizer_factory=lambda d, t: FakeRecognizer()
+    )
+    engine.load()
+    client.app.state.providers.captions = engine
+    with connect(client, iid) as ws:
+        reach_listening(ws)
+        uid = str(uuid.uuid4())
+        send(ws, "utterance.start", utterance_id=uid)
+        for _ in range(5):
+            ws.send_bytes(b"\x00\x00" * 3200)  # five pieces of 0.2 s
+        first = collect(ws, "transcript.partial")[-1]
+        assert first["live"].startswith("Word0") and first["committed"] == ""
+        send(ws, "utterance.end", utterance_id=uid, reason="manual")
+        msgs = collect(ws, "tts.end")
+    engine.executor.shutdown(wait=False)
+    partials = [m for m in msgs if isinstance(m, dict) and m["type"] == "transcript.partial"]
+    assert all(p["committed"] == "" for p in partials)  # Whisper's commits are not shown
+    final = next(m for m in msgs if isinstance(m, dict) and m["type"] == "transcript.final")
+    assert final["text"].startswith("mock transcript of")  # the saved text still comes from STT

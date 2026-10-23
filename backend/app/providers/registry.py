@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from app.config import Settings
 from app.credentials.pool import CredentialPool
 from app.providers.base import EmbeddingProvider, LLMProvider, STTProvider, TTSProvider
+from app.providers.caption_sherpa import SherpaCaptionEngine
 from app.providers.llm_openai_compat import OpenAICompatLLM
 from app.providers.mock.providers import MockEmbeddings, MockLLM, MockSTT, MockTTS
 from app.providers.ratelimit import RateLimiter
@@ -15,6 +16,7 @@ class Providers:
     stt: STTProvider
     tts: TTSProvider
     embeddings: EmbeddingProvider
+    captions: SherpaCaptionEngine | None = None  # live captions while speaking (optional)
 
 
 def _build_llm(settings: Settings) -> LLMProvider:
@@ -47,6 +49,14 @@ def _build_stt(settings: Settings) -> STTProvider:
     )
 
 
+def _build_captions(settings: Settings) -> SherpaCaptionEngine | None:
+    if settings.stream_asr_mode == "off":
+        return None
+    return SherpaCaptionEngine(
+        model_dir=settings.stream_asr_path, num_threads=settings.stream_asr_threads
+    )
+
+
 def build_providers(settings: Settings) -> Providers:
     if settings.provider_mode != "mock":
         # Never fall back to mocks silently: live TTS/embedding adapters come later.
@@ -58,4 +68,5 @@ def build_providers(settings: Settings) -> Providers:
         stt=_build_stt(settings),
         tts=MockTTS(),
         embeddings=MockEmbeddings(),
+        captions=_build_captions(settings),
     )
